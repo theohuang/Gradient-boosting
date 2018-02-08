@@ -1,15 +1,17 @@
 ### Gradient Boosting for Old CGN Data
 ### Modelling carrier probabilities for BRCA12/2
-### Last updated: January 26, 2018
+### Last updated: February 7, 2018
 
+setwd("~/Dropbox (Partners HealthCare)/Gradient Boosting")
 
 ## Loading functions
-source("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/Gradient Boosting/Gradient Boosting Basis Functions.R")
+source(paste(getwd(), "/Gradient Boosting Basis Functions.R", sep = ""))
 
 ## Loading data
-load("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/CGN Data/CGNValidationData/data/PedLevelVars.RData")
-load("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/CGN Data/CGNValidationData/data/FamLevelVars.RData")
-load("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/Gradient Boosting/CGNResults012417.RData")
+# load(paste(getwd(), "/CGNValidationData/data/PedLevelVars.RData", sep = ""))
+# load(paste(getwd(), "/CGNValidationData/data/FamLevelVars.RData", sep = ""))
+# load("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/Gradient Boosting/CGNResults012417.RData")
+library(CGNValidationData)
 
 ## Loading BayesMendel
 library(BayesMendel)
@@ -27,6 +29,11 @@ brcapro.fam <- function(fam, seed = 1){
   ind.pro <- which(fam$Relation == 1)
   ## not using germline testing results for proband
   germline.testing[ind.pro, ] <- rep(0, 3)
+  ## not using germline testing results for the proband's twins
+  if(fam$Twins[ind.pro] > 0){
+    ind.twin <- which(fam$Twins == fam$Twins[ind.pro] & fam$Relation != 1)
+    germline.testing[ind.twin, ] <- rep(0, 3)
+  }
   result <- brcapro(family = fam, counselee.id = fam$ID[ind.pro],
                     germline.testing = germline.testing, print = FALSE)
   return(result)
@@ -34,7 +41,6 @@ brcapro.fam <- function(fam, seed = 1){
 
 
 ## Running BRCAPRO with and without ovarian cancer information
-PedLevelVars$FamID <- NA
 famid <- cbind(unique(PedLevelVars[, c("Center.ID", "File.ID")]), 1:nrow(FamLevelVars))
 names(famid)[3] <- "FamID"
 cgn <- merge(PedLevelVars, famid, by = c("Center.ID", "File.ID"))
@@ -46,23 +52,44 @@ for(i in 1:nrow(FamLevelVars)){
                                        cgn$File.ID == FamLevelVars$File.ID[i]][1]
 }
 
-cgn.boost <- data.frame(matrix(0, length(unique(cgn$FamID)), 5))
-names(cgn.boost) <- c("FamID", "P.BRCA", "P.BRCA.NoOC", "P.BRCA.NoAJ", "P.BRCA.NoOCAJ")
-cgn.boost$FamID <- 1:length(unique(cgn$FamID))
-start <- Sys.time()
-for(i in 1:length(unique(cgn$FamID))){
-  cgn.boost$P.BRCA[i] <- brcapro.fam(cgn[cgn$FamID == i, ])@probs[1]
-  dat.nooc <- cgn[cgn$FamID == i, ]
-  dat.nooc$AffectedOvary <- 0
-  dat.nooc$AgeOvary <- dat.nooc$Current.Age
-  cgn.boost$P.BRCA.NoOC[i] <- brcapro.fam(dat.nooc)@probs[1]
-  dat.noaj <- cgn[cgn$FamID == i, ]
-  dat.noaj$ethnic <- NA
-  cgn.boost$P.BRCA.NoAJ[i] <- brcapro.fam(dat.noaj)@probs[1]
-  dat.noocaj <- dat.nooc; dat.noocaj$ethnic <- NA
-  cgn.boost$P.BRCA.NoOCAJ[i] <- brcapro.fam(dat.noocaj)@probs[1]
+# cgn.boost <- data.frame(matrix(0, length(unique(cgn$FamID)), 5))
+# names(cgn.boost) <- c("FamID", "P.BRCA", "P.BRCA.NoOC", "P.BRCA.NoAJ", "P.BRCA.NoOCAJ")
+# cgn.boost$FamID <- 1:length(unique(cgn$FamID))
+# start <- Sys.time()
+# for(i in 1:length(unique(cgn$FamID))){
+#   cgn.boost$P.BRCA[i] <- brcapro.fam(cgn[cgn$FamID == i, ])@probs[1]
+#   dat.nooc <- cgn[cgn$FamID == i, ]
+#   dat.nooc$AffectedOvary <- 0
+#   dat.nooc$AgeOvary <- dat.nooc$Current.Age
+#   cgn.boost$P.BRCA.NoOC[i] <- brcapro.fam(dat.nooc)@probs[1]
+#   dat.noaj <- cgn[cgn$FamID == i, ]
+#   dat.noaj$ethnic <- NA
+#   cgn.boost$P.BRCA.NoAJ[i] <- brcapro.fam(dat.noaj)@probs[1]
+#   dat.noocaj <- dat.nooc; dat.noocaj$ethnic <- NA
+#   cgn.boost$P.BRCA.NoOCAJ[i] <- brcapro.fam(dat.noocaj)@probs[1]
+# }
+# print(difftime(Sys.time(), start, units = "secs"))
+
+cgn.boost <- data.frame(FamID = 1:length(unique(cgn$FamID)))
+library(data.table)
+run.brca <- function(fam){
+  dat.nooc <- fam; dat.nooc$AffectedOvary <- 0; dat.nooc$AgeOvary <- dat.nooc$Current.Age
+  dat.noaj <- fam; dat.nooc$ethnic <- NA
+  dat.noocaj <- dat.nooc; dat.nooc$ethnic <- NA
+  return(c(brcapro.fam(fam)@probs[1], brcapro.fam(dat.nooc)@probs[1],
+           brcapro.fam(dat.noaj)@probs[1], brcapro.fam(dat.noocaj)@probs[1]))
 }
+start <- Sys.time()
+dt <- data.table(cgn)
+dt <- dt[, run.brca(.SD), by = FamID]
 print(difftime(Sys.time(), start, units = "secs"))
+names(dt)[-1] <- c("P.BRCA", "P.BRCA.NoOC", "P.BRCA.NoAJ", "P.BRCA.NoOCAJ")
+cgn.boost <- merge(cgn.boost, dt, by = "FamID")
+
+# famid.twin <- filter(cgn, Relation == 1, Twins > 0)$FamID
+# dt.twin <- data.table(filter(cgn, FamID %in% famid.twin))
+# dt.twin <- dt.twin[, run.brca(.SD), by = FamID]
+# cgn.boost[cgn.boost$FamID %in% famid.twin, ] <- data.frame(dt.twin)
 
 
 germ <- c(cgn$FamID[cgn$Germline.BRCA1Result == 1],
@@ -88,7 +115,6 @@ for(i in germ){
 ## Now adding in other covariate basis functions ##
 ###################################################
 
-source("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/Gradient Boosting/Gradient Boosting Basis Functions.R")
 library(data.table)
 DT.ov <- DT.pros <- DT.end <- DT.col <- DT.hp <- DT.nfam <- DT.imm <- DT.ngen <- data.table(cgn)
 DT.ov <- DT.ov[, ovary(.SD), by = FamID]
@@ -118,6 +144,8 @@ DT.age <- DT.age[, ifelse(.SD$Current.Age[.SD$Relation == 1] == 1, 55,
 DT.agerel <- DT.agerel[, mean(.SD$Current.Age[!(.SD$Current.Age %in% 0:1)],
                               na.rm = TRUE),
                        by = FamID]
+DT.hp2 <- data.table(cgn)
+DT.hp2 <- DT.hp2[, horz.perc2(.SD), by = FamID]
 
 
 res.vh <- data.frame(FamID = DT.ov$FamID,
@@ -129,7 +157,7 @@ res.vh <- data.frame(FamID = DT.ov$FamID,
                      NumEndometrium = DT.nend$V1, NumColon = DT.ncol$V1,
                      AgeProband = DT.age$V1, AvgAgeRel = DT.agerel$V1,
                      AffectedBreast = DT.br$V1, Vert = DT.vert$V1,
-                     Horz = DT.horz$V1)
+                     HorzPerc = DT.hp2$V1)
 
 # cgn.boost2 <- merge(CGN.res.boost, res.vh, by = c("Center.ID", "File.ID"))
 
@@ -152,9 +180,17 @@ logit.loss <- function(y, l, gamma, h){
   l2 <- l + gamma * h
   -sum(y * l2 - log(1 + exp(l2)))
 }
+lin.loss <- function(y, l, gamma, h){
+  l2 <- l + gamma * h
+  sum((y - 1 / (1 + exp(-l2)))^2)
+}
 
-M <- 10
+M <- 100
 alpha.int <- alpha.vert <- alpha.horz <- 0
+cgn.boost2$P.BRCA.NoOCAJ <- as.numeric(cgn.boost2$P.BRCA.NoOCAJ)
+cgn.boost2$P.BRCA.NoOC <- as.numeric(cgn.boost2$P.BRCA.NoOC)
+cgn.boost2$P.BRCA.NoAJ <- as.numeric(cgn.boost2$P.BRCA.NoAJ)
+cgn.boost2$P.BRCA <- as.numeric(cgn.boost2$P.BRCA)
 cgn.boost2$LO.0 <- log(cgn.boost2$P.BRCA.NoOCAJ / (1 - cgn.boost2$P.BRCA.NoOCAJ))
 cgn.boost2 <- rename(cgn.boost2, BRCA = BRCAcarrier)
 cgn.boost2 <- merge(cgn.boost2, select(filter(cgn, Relation == 1), FamID, ethnic),
@@ -163,17 +199,20 @@ cgn.boost2$ethnic[cgn.boost2$ethnic == "AJ"] <- 1
 cgn.boost2$ethnic[cgn.boost2$ethnic == "nonAJ"] <- 0
 train <- cgn.boost2[1:1000, ]
 test <- cgn.boost2[-(1:1000), ]
+shrink <- 0.1
+bag <- 0.5
+set.seed(1)
 for(i in 1:M){
+  smp <- sort(sample(1:nrow(train), ceiling(bag * nrow(train))))
   l <- as.matrix(select(train, one_of(paste("LO.", i - 1, sep = ""))))
   # resid <- as.numeric((p - train$BRCA) / (p * (1 - p)))
-  resid <- -train$BRCA - exp(l) / (1 + exp(l))
-  fit.h <- lm(resid ~ AffectedBreast + AffectedOvary + AffectedProstate +
-                AffectedEndometrium + AffectedColon + HorzPerc + FamSize +
-                NumBCImmed + NumGen + AgeProband + Vert + Horz + ethnic,
-              data = train)
+  resid <- exp(l[smp]) / (1 + exp(l[smp])) - train$BRCA[smp]
+  fit.h <- lm(resid ~ factor(AffectedBreast) + AffectedOvary + FamSize +
+                NumBCImmed + NumGen + AgeProband + Vert + HorzPerc + ethnic,
+              data = train[smp, ])
   h <- predict(fit.h, newdata = train)
   gamma.star <- optimize(f = logit.loss, y = train$BRCA,
-                         l = l, h = h, interval = c(-10, 10))$minimum * 0.3
+                         l = l, h = h, interval = c(-100, 100))$minimum * shrink
   if(i == 1){
     coeff <- coef(fit.h) * gamma.star
   } else{
@@ -188,7 +227,8 @@ for(i in 1:M){
   names(train)[ncol(train)] <- paste(names(train)[ncol(train)], ".", i, sep = "")
 }
 
-p.train <- as.numeric(1 / (1 + exp(-train$LO.10)))
+library(pROC)
+p.train <- as.numeric(1 / (1 + exp(-as.matrix(select(train, one_of(paste("LO.", M, sep = "")))))))
 sum(p.train) / sum(train$BRCA)
 sum(train$P.BRCA.NoOCAJ) / sum(train$BRCA)
 auc(train$BRCA ~ p.train)
@@ -196,13 +236,25 @@ auc(train$BRCA ~ train$P.BRCA.NoOCAJ)
 mean((p.train - train$BRCA)^2)
 mean((train$P.BRCA.NoOCAJ - train$BRCA)^2)
 
-p.test <- as.numeric(data.matrix(cbind(rep(1, nrow(test)),
-                            test[, c("AffectedBreast", "AffectedOvary", "AffectedProstate",
-                                     "AffectedEndometrium", "AffectedColon", "HorzPerc", "FamSize",
-                                     "NumBCImmed", "NumGen", "AgeProband", "Vert", "Horz", "ethnic")])) %*% matrix(coeff, 14, 1))
+fit.test <- fit.h
+fit.test$coefficients <- coeff
+p.test <- 1 / (1 + exp(-test$LO.0 - predict(fit.test, newdata = test)))
 
+# p.test <- 1 / (1 + exp(-test$P.BRCA.NoOCAJ - as.numeric(data.matrix(cbind(rep(1, nrow(test)),
+#                                        as.numeric(test$AffectedBreast == 1),
+#                                        as.numeric(test$AffectedBreast == 2),
+#                                        test[, c("AffectedOvary", "HorzPerc", "FamSize",
+#                                                 "NumBCImmed", "NumGen",
+#                                                 "AgeProband", "Vert", "Horz", "ethnic")])) %*%
+#                                      matrix(coeff, length(coeff), 1))))
+
+sum(p.test) / sum(test$BRCA)
+sum(test$P.BRCA.NoOCAJ) / sum(test$BRCA)
 auc(test$BRCA ~ p.test)
 auc(test$BRCA ~ test$P.BRCA.NoOCAJ)
+mean((p.test - test$BRCA)^2)
+mean((test$P.BRCA.NoOCAJ - test$BRCA)^2)
+
 
 
 fit <- gbm(BRCAcarrier ~ P.BRCA.NoOCAJ + AffectedBreast + AffectedOvary + AffectedProstate +
