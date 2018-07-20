@@ -9,6 +9,7 @@ library(BayesMendelKnowledgeBase)
 library(BMmultigene)
 library(pROC)
 library(xtable)
+library(ggplot2)
 library(doParallel)
 registerDoParallel(cores = 4)
 
@@ -464,9 +465,10 @@ sim.gb$LO.0 <- log(sim.gb$P.MMR / (1 - sim.gb$P.MMR))
 
 
 gb.mmr <- function(sim.gb, covs, M, shrink, bag, seed = 1){
-  train <- sim.gb[1:(nrow(sim.gb) / 2), ]
-  test <- sim.gb[-(1:(nrow(sim.gb )/ 2)), ]
   set.seed(seed)
+  smp.train <- sample(1:nrow(sim.gb), floor(nrow(sim.gb) / 2))
+  train <- sim.gb[smp.train, ]
+  test <- sim.gb[-smp.train, ]
   for(i in 1:M){
     smp <- sort(sample(1:nrow(train), ceiling(bag * nrow(train))))
     l <- as.matrix(select(train, one_of(paste("LO.", i - 1, sep = ""))))
@@ -510,12 +512,13 @@ gb.mmr <- function(sim.gb, covs, M, shrink, bag, seed = 1){
   p.test <- 1 / (1 + exp(-test$LO.0 - predict(fit.test, newdata = test)))
   
   
-  return(data.frame(EO.GB = sum(p.test) / sum(test$MMR),
-                    EO.MMR = sum(test$P.MMR) / sum(test$MMR),
-                    AUC.GB = auc(test$MMR ~ p.test),
-                    AUC.MMR = auc(test$MMR ~ test$P.MMR),
-                    BS.GB = mean((p.test - test$MMR)^2),
-                    BS.MMR = mean((test$P.MMR - test$MMR)^2)))
+  return(list(df = data.frame(EO.GB = sum(p.test) / sum(test$MMR),
+                              EO.MMR = sum(test$P.MMR) / sum(test$MMR),
+                              AUC.GB = auc(test$MMR ~ p.test),
+                              AUC.MMR = auc(test$MMR ~ test$P.MMR),
+                              BS.GB = mean((p.test - test$MMR)^2),
+                              BS.MMR = mean((test$P.MMR - test$MMR)^2)),
+              p.test = p.test, test = test))
 }
 
 
@@ -523,11 +526,26 @@ start <- Sys.time()
 df <- data.frame(matrix(0, 100, 6))
 names(df) <- c("EO.GB", "EO.MMR", "AUC.GB", "AUC.MMR", "BS.GB", "BS.MMR")
 for(i in 1:100){
-  df[i, ] <- gb.mmr(sim.gb, c(can.names[-(2:3)], "NumVert", "NumHorz"),
-                    M, shrink, bag, seed = i)
+  df[i, ] <- gb.mmr(sim.gb, c(can.names[-c(2:3)], "NumVert", "NumHorz"),
+                    M, shrink, bag, seed = i)$df
 }
 colMeans(df)
 difftime(Sys.time(), start, units = "secs")
+
+
+
+res <- gb.mmr(sim.gb, c(can.names[-c(2:3)], "NumVert", "NumHorz"),
+              M, shrink, bag, seed = 1)
+
+ggplot(mutate(res$test, GB = res$p.test), aes(P.MMR, GB)) +
+  geom_hex(data = filter(mutate(res$test, GB = res$p.test), MMR == 0),
+           bins = 30) +
+  geom_point(data = filter(mutate(res$test, GB = res$p.test), MMR == 1),
+             aes(color = "red"), size = 0.5) +
+  geom_abline(slope = 1, intercept = 0) +
+  labs(x = "MMRPRO", y = "Gradient Boosting") +
+  scale_color_discrete(labels = "MMR carrier", name = "")
+
 
 
 # print(xtable(
