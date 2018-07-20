@@ -1,6 +1,6 @@
 ### Gradient Boosting for Old CGN Data
 ### Modelling carrier probabilities for BRCA12/2
-### Last updated: February 7, 2018
+### Last updated: February 8, 2018
 
 setwd("~/Dropbox (Partners HealthCare)/Gradient Boosting")
 
@@ -12,6 +12,7 @@ source(paste(getwd(), "/Gradient Boosting Basis Functions.R", sep = ""))
 # load(paste(getwd(), "/CGNValidationData/data/FamLevelVars.RData", sep = ""))
 # load("/Users/Theo/Documents/Harvard/Research with Giovanni Parmigiani/Gradient Boosting/CGNResults012417.RData")
 library(CGNValidationData)
+data(PedLevelVars, FamLevelVars)
 
 ## Loading BayesMendel
 library(BayesMendel)
@@ -73,18 +74,31 @@ for(i in 1:nrow(FamLevelVars)){
 cgn.boost <- data.frame(FamID = 1:length(unique(cgn$FamID)))
 library(data.table)
 run.brca <- function(fam){
-  dat.nooc <- fam; dat.nooc$AffectedOvary <- 0; dat.nooc$AgeOvary <- dat.nooc$Current.Age
-  dat.noaj <- fam; dat.nooc$ethnic <- NA
-  dat.noocaj <- dat.nooc; dat.nooc$ethnic <- NA
-  return(c(brcapro.fam(fam)@probs[1], brcapro.fam(dat.nooc)@probs[1],
-           brcapro.fam(dat.noaj)@probs[1], brcapro.fam(dat.noocaj)@probs[1]))
+  # dat.nooc <- fam; dat.nooc$AffectedOvary <- 0; dat.nooc$AgeOvary <- dat.nooc$Current.Age
+  # dat.noaj <- fam; dat.nooc$ethnic <- NA
+  # dat.noocaj <- dat.nooc; dat.nooc$ethnic <- NA
+  # return(c(brcapro.fam(fam)@probs[1], brcapro.fam(dat.nooc)@probs[1],
+  #          brcapro.fam(dat.noaj)@probs[1], brcapro.fam(dat.noocaj)@probs[1]))
+  return(as.numeric(brcapro(fam, counselee.id = fam$ID[fam$Relation == 1], print = FALSE)@probs[1]))
 }
-start <- Sys.time()
-dt <- data.table(cgn)
-dt <- dt[, run.brca(.SD), by = FamID]
-print(difftime(Sys.time(), start, units = "secs"))
-names(dt)[-1] <- c("P.BRCA", "P.BRCA.NoOC", "P.BRCA.NoAJ", "P.BRCA.NoOCAJ")
-cgn.boost <- merge(cgn.boost, dt, by = "FamID")
+# # start <- Sys.time()
+# # dt <- data.table(cgn)
+# # dt <- dt[, run.brca(.SD), by = FamID]
+# # print(difftime(Sys.time(), start, units = "secs"))
+# names(dt)[-1] <- c("P.BRCA", "P.BRCA.NoOC", "P.BRCA.NoAJ", "P.BRCA.NoOCAJ")
+
+library(doParallel)
+registerDoParallel(cores = 4)
+
+system.time(
+  res.brca <- foreach(i = 1:length(unique(cgn$FamID)), .combine = "c") %dopar% {
+    tryCatch(run.brca(cgn[cgn$FamID == i, ]), error = function(e) NA)
+  }
+)
+
+cgn.boost$P.BRCA <- res.brca
+
+# cgn.boost <- merge(cgn.boost, dt, by = "FamID")
 
 # famid.twin <- filter(cgn, Relation == 1, Twins > 0)$FamID
 # dt.twin <- data.table(filter(cgn, FamID %in% famid.twin))
@@ -191,7 +205,7 @@ cgn.boost2$P.BRCA.NoOCAJ <- as.numeric(cgn.boost2$P.BRCA.NoOCAJ)
 cgn.boost2$P.BRCA.NoOC <- as.numeric(cgn.boost2$P.BRCA.NoOC)
 cgn.boost2$P.BRCA.NoAJ <- as.numeric(cgn.boost2$P.BRCA.NoAJ)
 cgn.boost2$P.BRCA <- as.numeric(cgn.boost2$P.BRCA)
-cgn.boost2$LO.0 <- log(cgn.boost2$P.BRCA.NoOCAJ / (1 - cgn.boost2$P.BRCA.NoOCAJ))
+cgn.boost2$LO.0 <- log(cgn.boost2$P.BRCA / (1 - cgn.boost2$P.BRCA.NoOCAJ))
 cgn.boost2 <- rename(cgn.boost2, BRCA = BRCAcarrier)
 cgn.boost2 <- merge(cgn.boost2, select(filter(cgn, Relation == 1), FamID, ethnic),
                     by = "FamID")
@@ -255,6 +269,8 @@ auc(test$BRCA ~ test$P.BRCA.NoOCAJ)
 mean((p.test - test$BRCA)^2)
 mean((test$P.BRCA.NoOCAJ - test$BRCA)^2)
 
+save(cgn, cgn.boost, cgn.boost2, p.train, p.test,
+     file = paste(getwd(), "/cgnboost.RData", sep = ""))
 
 
 fit <- gbm(BRCAcarrier ~ P.BRCA.NoOCAJ + AffectedBreast + AffectedOvary + AffectedProstate +
