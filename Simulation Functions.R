@@ -1,27 +1,28 @@
 ## Functions used for simulating families
-## Last updated: September 10, 2018
+## Last updated: October 19, 2018
 
 ## generating the penetrance matrix for a given cancer and gender
 ## creates a matrix where each column is the penetrance of cancer and gender
 ## for a gene
-gen.pen <- function(cancer, genes, gender, age.max = 94){
+gen.pen <- function(cancer, genes, gnd, age.max = 94){
   
-  if(gender == "Female"){
+  if(gnd == "Female"){
     cancer.oppgen <- "ProstC"
   } else{
-    cancer.oppgen <- c("OC", "Endom")
+    cancer.oppgen <- c("OC", "EndomC")
   }
+  oppgen <- ifelse(gnd == "Male", "Female", "Male")
   if(cancer %in% cancer.oppgen){
     pen.nc <- rep(0, 94)
   } else{
     for(i in 1:length(genes)){
       if(exists(paste(genes[i], ".", cancer, sep = ""))){
         if(!is.null(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))))){
-          if(length(which(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = "")))$gender == gender)) > 0){
+          if(length(which(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = "")))$gender == gnd)) > 0){
             pen.nc <- filter(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))),
                              carrier == "No", (mastectomy == "No" | is.na(mastectomy)),
                              (oophorectomy == "No" | is.na(oophorectomy)),
-                             gender == gender)$risk[1:age.max]
+                             gender == gnd)$risk[1:age.max]
             if(sum(pen.nc) >= 1){
               pen.nc <- pen.nc * 0.99999 / sum(pen.nc)
             }
@@ -37,17 +38,30 @@ gen.pen <- function(cancer, genes, gender, age.max = 94){
   
   pen <- replicate(length(genes) + 1, pen.nc, cbind())
   
-  for(i in 1:length(genes)){
-    if(exists(paste(genes[i], ".", cancer, sep = ""))){
-      if(!is.null(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))))){
-        if(length(which(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = "")))$gender == gender)) > 0){
-          pen[, i + 1] <- filter(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))),
-                                 carrier == "Yes", (mastectomy == "No" | is.na(mastectomy)),
-                                 (oophorectomy == "No" | is.na(oophorectomy)),
-                                 gender == gender)$risk[1:age.max]
-          if(sum(pen[, i + 1]) >= 1){
-            pen[, i + 1] <- pen[, i + 1] * 0.99999 / sum(pen[, i + 1])
-          }
+  if(cancer %in% cancer.oppgen){
+    return(pen)
+  } else{
+    for(i in 1:length(genes)){
+      if(exists(paste(genes[i], ".", cancer, sep = ""))){
+        if(!is.null(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))))){
+          if(length(which(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = "")))$gender == gnd)) > 0){
+            pen[, i + 1] <- filter(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))),
+                                   carrier == "Yes", (mastectomy == "No" | is.na(mastectomy)),
+                                   (oophorectomy == "No" | is.na(oophorectomy)),
+                                   gender == gnd)$risk[1:age.max]
+            if(sum(pen[, i + 1]) >= 1){
+              pen[, i + 1] <- pen[, i + 1] * 0.99999 / sum(pen[, i + 1])
+            }
+          } else if(length(which(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = "")))$gender == oppgen)) > 0){
+            ## if we're missing the gender, then assume the penetrance is the same as the opposite gender
+            pen[, i + 1] <- filter(eval(parse(text = paste(genes[i], ".", cancer, "$risk.table", sep = ""))),
+                                   carrier == "Yes", (mastectomy == "No" | is.na(mastectomy)),
+                                   (oophorectomy == "No" | is.na(oophorectomy)),
+                                   gender == oppgen)$risk[1:age.max]
+            if(sum(pen[, i + 1]) >= 1){
+              pen[, i + 1] <- pen[, i + 1] * 0.99999 / sum(pen[, i + 1])
+            }
+          } ## if still we don't have it, then assume the penetrance is the same as the non-carriers
         }
       }
     }
@@ -59,7 +73,7 @@ gen.pen <- function(cancer, genes, gender, age.max = 94){
 gen.pen.list <- function(cancers, genes, gender){
   pen <- list()
   for(i in 1:length(cancers)){
-    pen[[i]] <- gen.pen(cancers[i], genes, gender)
+    pen[[i]] <- gen.pen(cancers[i], genes, gnd = gender)
   }
   names(pen) <- cancers
   return(pen)
@@ -76,7 +90,7 @@ gen.fam <- function(n.sim, CP, af, seed = NULL, age.max = 94, age.min = 2,
     nSibs <- sample(0:3, 2, replace = TRUE)
     nGrandchild <- matrix(sample(0:3, 2 * (sum(nSibs) + 1), replace = TRUE), sum(nSibs) + 1, 2)
     fam.sim[[i]] <- tryCatch(sim.simFam(nSibsPatern, nSibsMatern, nSibs,
-                                         nGrandchild, af, CP, includeGeno = TRUE, age.max = age.max,
+                                        nGrandchild, af, CP, includeGeno = TRUE, age.max = age.max,
                                         age.min = age.min, censoring = censoring),
                              error = function(e) NULL)
   }

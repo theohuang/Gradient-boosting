@@ -2,7 +2,7 @@
 ## Running on Odyssey Cluster
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
 ## Finding optimal number of iterations
-## Last updated: September 24, 2018
+## Last updated: October 19, 2018
 
 rm(list = ls())
 
@@ -24,6 +24,7 @@ source("CheckFamStructure.gast.R")
 source("Simulation Functions.R")
 source("Gradient Boosting Functions.R")
 source("Heterozygous Penetrance.R")
+source("LyteSimple.gast.R")
 
 
 ## Getting the penetrance
@@ -79,10 +80,22 @@ mmr.gb <- function(fam, af, CP, gastric = TRUE, scl = 1, pwr = NULL){
 
 
 ## Running MMRPRO with and without gastric cancer, with different scales
+start <- Sys.time()
 mmr.simres <- foreach(i = 1:length(fam.sim), .combine = rbind) %dopar% {
-  tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, gastric = FALSE),
-           error = function(e) rep(NA, 4))
+  c(tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, gastric = FALSE),
+             error = function(e) rep(NA, 4)),
+    tryCatch(mmr.gb(fam.sim[[i]], af = af, CP),
+             error = function(e) rep(NA, 4)),
+    tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, pwr = 0.25),
+             error = function(e) rep(NA, 4)),
+    tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, pwr = 0.5),
+             error = function(e) rep(NA, 4)),
+    tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, pwr = 2),
+             error = function(e) rep(NA, 4)),
+    tryCatch(mmr.gb(fam.sim[[i]], af = af, CP, pwr = 4),
+             error = function(e) rep(NA, 4)))
 }
+print(difftime(Sys.time(), start, units = "secs"))
 
 
 
@@ -104,14 +117,14 @@ sim.gb$FamID <- 1:nrow(sim.gb)
 
 can.names <- paste("Prop", cancers, sep = "")
 sim.gb[can.names] <- NA
-start <- Sys.time()
 for(i in 1:nrow(sim.gb)){
   if(!is.null(fam.sim[[i]])){
-    sim.gb[can.names][sim.gb$FamID == i, ] <- colMeans(fam.sim[[i]][paste("isAff", cancers, sep = "")])
+    sim.gb[c("PropColorC", "PropGastC")][sim.gb$FamID == i, ] <- colMeans(fam.sim[[i]][paste("isAff", cancers[c(1, 3)], sep = "")])
+    sim.gb$PropEndomC[sim.gb$FamID == i] <- mean(fam.sim[[i]]$isAffEndomC[fam.sim[[i]]$Gender == 0])
   }
 }
-print(difftime(Sys.time(), start, units = "secs"))
 
+# save(fam.sim, mmr.simres, sim.gb, file = "gb_sim_test.RData")
 
 
 ## using gradient boosting, incorporating information on gastric cancer
@@ -123,7 +136,7 @@ shrink <- 0.1
 bag <- 0.5
 
 
-######### evaluating using EO
+######### evaluating using OE
 
 res.gb <- setNames(vector("list", length(nm.list)), nm.list)
 # res.gb <- lapply(res.gb, function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
@@ -132,10 +145,10 @@ res.gb <- setNames(vector("list", length(nm.list)), nm.list)
 #                                           eval_best = setNames(data.frame(matrix(0, n.boot, 2)),
 #                                                                c("AUC", "BS"))))
 res.gb <- lapply(res.gb, function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
-                                                          c("EO", "AUC", "BS")),
+                                                          c("OE", "AUC", "BS")),
                                           eval = list(),
                                           eval_best = setNames(data.frame(matrix(0, n.boot, 1)),
-                                                               "EO")))
+                                                               "OE")))
 
 
 start <- Sys.time()
@@ -161,7 +174,7 @@ for(i in 1:n.boot){
   #                          early_stopping_rounds = M, eval_metric = "rmse",
   #                          eval_metric = "auc", verbose = 0)
   res.xgb.mmr <- xgb.train(param, dtrain.mmr, nrounds = M, watchlist,
-                           early_stopping_rounds = M, eval_metric = eo.xgb,
+                           early_stopping_rounds = M, eval_metric = oe.xgb,
                            maximize = FALSE, verbose = 0)
   pred.xgb.mmr <- predict(res.xgb.mmr, dtest.mmr)
   res.gb$XGB.mmr$perf[i, ] <- perf.meas(test$MMR, pred.xgb.mmr)
@@ -169,7 +182,7 @@ for(i in 1:n.boot){
   res.gb$XGB.mmr$eval[[i]] <- res.xgb.mmr$evaluation_log
   # res.gb$XGB.mmr$eval_best[i, ] <- c(which.max(res.xgb.mmr$evaluation_log$test_auc),
   #                                    which.min(res.xgb.mmr$evaluation_log$test_rmse))
-  res.gb$XGB.mmr$eval_best[i, ] <- which.min(abs(res.xgb.mmr$evaluation_log$test_EO - 1))
+  res.gb$XGB.mmr$eval_best[i, ] <- which.min(abs(res.xgb.mmr$evaluation_log$test_OE - 1))
   
   
   ## XGBoost with constant
@@ -182,7 +195,7 @@ for(i in 1:n.boot){
   #                            early_stopping_rounds = M, eval_metric = "rmse",
   #                            eval_metric = "auc", verbose = 0)
   res.xgb.const <- xgb.train(param, dtrain.const, nrounds = M, watchlist,
-                             early_stopping_rounds = M, eval_metric = eo.xgb,
+                             early_stopping_rounds = M, eval_metric = oe.xgb,
                              maximize = FALSE, verbose = 0)
   pred.xgb.const <- predict(res.xgb.const, dtest.const)
   res.gb$XGB.const$perf[i, ] <- perf.meas(test$MMR, pred.xgb.const)
@@ -190,7 +203,7 @@ for(i in 1:n.boot){
   res.gb$XGB.const$eval[[i]] <- res.xgb.const$evaluation_log
   # res.gb$XGB.const$eval_best[i, ] <- c(which.max(res.xgb.const$evaluation_log$test_auc),
   #                                      which.min(res.xgb.const$evaluation_log$test_rmse))
-  res.gb$XGB.const$eval_best[i, ] <- which.min(abs(res.xgb.const$evaluation_log$test_EO - 1))
+  res.gb$XGB.const$eval_best[i, ] <- which.min(abs(res.xgb.const$evaluation_log$test_OE - 1))
   
 }
 
@@ -199,7 +212,7 @@ for(i in 1:n.boot){
 
 res.gb2 <- setNames(vector("list", length(nm.list)), nm.list)
 res.gb2 <- lapply(res.gb2, function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
-                                                          c("EO", "AUC", "BS")),
+                                                          c("OE", "AUC", "BS")),
                                           eval = list(),
                                           eval_best = setNames(data.frame(matrix(0, n.boot, 2)),
                                                                c("AUC", "BS"))))

@@ -38,6 +38,9 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
   
   ## version 2.1-5 : now we only use the other cancer age to impute missing ages if
   ## the individual is unaffected for both cancers (i.e., the ages are current ages and not cancer ages)
+  ## also for 2.1-5, if the user inputs germline.testing or marker.testing information
+  ## and the family already has that information in the columns, we now delete
+  ## the columns and use the inputted information (in case there are inconsistencies between the two)
   
   errormsg <- ""
   warnmsg <- ""
@@ -233,7 +236,8 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
   
   if(model=="MMRpro"){
     family.names <- c("ID", "Gender", "FatherID", "MotherID", "AffectedColon", 
-                      "AffectedEndometrium", "AgeColon", "AgeEndometrium",
+                      "AffectedEndometrium", "AffectedGastric",
+                      "AgeColon", "AgeEndometrium", "AgeGastric",
                       "Twins", "ethnic")
     gene.names <- c("MLH1","MSH2","MSH6","TestOrder")
     marker.names <- c("MSI", "location")
@@ -303,6 +307,10 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
       errormsg <- paste("Error: column ",missing.columns," is missing.",sep="")
       return(errormsg)
     }
+    
+    # if fff already has columns with the genetic testing information, replace it with
+    # the germline.testing data frame information
+    fff[, gene.names] <- NULL
     fff <- data.frame(fff,germline.testing)
   }
   
@@ -325,6 +333,10 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
       errormsg <- paste("Error: column ",missing.columns," is missing.",sep="")
       return(errormsg)
     }
+    
+    # if fff already has columns with the marker testing information, replace it with
+    # the marker.testing data frame information
+    fff[, marker.names] <- NULL
     fff <- data.frame(fff,marker.testing)
   }
   
@@ -356,6 +368,10 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
     #  errormsg <- "Error: oophorectomy may not be included for individuals with no known age."
     #  return(errormsg)
     #}
+    
+    # if fff already has columns with the oophorectomy information, replace it with
+    # the oophorectomy data frame information
+    fff[, oophorectomy.names] <- NULL
     fff <- data.frame(fff,oophorectomy)
   }
   
@@ -385,6 +401,10 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
     #  errormsg <- "Error: mastectomy may not be included for individuals with no known age."
     #  return(errormsg)
     #}
+    
+    # if fff already has columns with the mastectomy information, replace it with
+    # the mastectomy data frame information
+    fff[, mastectomy.names] <- NULL
     fff <- data.frame(fff,mastectomy)
   }
   
@@ -529,16 +549,22 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
   
   if(model=="MMRpro"){
     # Winsorize ages at age.max
-    ages.cancer <- data.frame(fff[,"AgeColon",drop=FALSE],fff[,"AgeEndometrium",drop=FALSE])
+    ages.cancer <- data.frame(fff[,"AgeColon",drop=FALSE],fff[,"AgeEndometrium",drop=FALSE], fff[,"AgeGastric",drop=FALSE])
     if(sum(ages.cancer>age.max)>0) warnmsg <- paste(warnmsg, "Warning: age(s) older than age.max has been converted to age.max!")
     fff[fff[,"AgeColon"]>age.max,"AgeColon"] <- age.max
     fff[fff[,"AgeEndometrium"]>age.max,"AgeEndometrium"] <- age.max
+    fff[fff[,"AgeGastric"]>age.max,"AgeGastric"] <- age.max
+    
     
     # Change censoring ages of zero to one
     # Check that no ages of onset less than one
     fff[fff[,"AffectedColon"]==0 & fff[,"AgeColon"]==0,"AgeColon"] <- 1
     fff[fff[,"AffectedEndometrium"]==0 & fff[,"AgeEndometrium"]==0,"AgeEndometrium"] <- 1
-    if(sum(fff[,"AffectedColon"]==1 & fff[,"AgeColon"]==0)>0 | sum(fff[,"AffectedEndometrium"]==1 & fff[,"AgeEndometrium"]==0)>0) errormsg <- paste(errormsg, "Error: cancer age at onset is 0!  ") 
+    fff[fff[,"AffectedGastric"]==0 & fff[,"AgeGastric"]==0,"AgeGastric"] <- 1
+    
+    if(sum(fff[,"AffectedColon"]==1 & fff[,"AgeColon"]==0)>0 |
+       sum(fff[,"AffectedEndometrium"]==1 & fff[,"AgeEndometrium"]==0)>0 |
+       sum(fff[,"AffectedGastric"]==1 & fff[,"AgeGastric"]==0)>0) errormsg <- paste(errormsg, "Error: cancer age at onset is 0!  ") 
     
     # Valid cancer status and genotype status numbers
     if(any(fff[,"AffectedEndometrium"]!=0 & fff[,"AffectedEndometrium"]!=1)) {
@@ -823,13 +849,13 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
   }
   
   if (model=="MMRpro") {
-    nunaff = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$ID!=counselee.id))
-    nunaff.extended = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$ID!=counselee.id & 
+    nunaff = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$AffectedGastric==0 & fff$ID!=counselee.id))
+    nunaff.extended = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$AffectedGastric==0 & fff$ID!=counselee.id & 
                                fff$Relation!=4 & fff$Relation!=5 & fff$Relation!=7))
-    nunaff.nuclear = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$ID!=counselee.id & 
-                              fff$AgeColon==1 & fff$AgeEndometrium==1 & 
+    nunaff.nuclear = sum(1*(fff$AffectedColon==0 & fff$AffectedEndometrium==0 & fff$AffectedGastric==0 & fff$ID!=counselee.id & 
+                              fff$AgeColon==1 & fff$AgeEndometrium==1 & fff$AgeGastric==1 &
                               (fff$Relation==4 | fff$Relation==5 | fff$Relation==7)))
-    n.aff.nuclear = sum(1*((fff$AffectedColon>0 | fff$AffectedEndometrium==1) & fff$ID!=counselee.id & 
+    n.aff.nuclear = sum(1*((fff$AffectedColon>0 | fff$AffectedEndometrium==1 & fff$AffectedGastric==1) & fff$ID!=counselee.id & 
                              (fff$Relation==4 | fff$Relation==5 | fff$Relation==7)))
     if (nunaff==0) {runLyteSimple=TRUE} else 
       if (nunaff>0 & nunaff.extended==0 & (nunaff.nuclear + n.aff.nuclear == 6)) {runLyteSimple=TRUE} else{
@@ -900,8 +926,14 @@ CheckFamStructure.gast  <-  function(model,fff,counselee.id,germline.testing=NUL
     fff$TestOrder = 0
   }
   
-  if (runLyteSimple & imputeRelatives==TRUE) { #run Lyte simple
-    fff = LyteSimple(fff, params=params, model=model)  
+  if(model == "MMRpro"){
+    if (runLyteSimple & imputeRelatives==TRUE) { #run Lyte simple
+      fff = LyteSimple.gast(fff, params=params, model=model)  
+    }
+  } else{
+    if (runLyteSimple & imputeRelatives==TRUE) { #run Lyte simple
+      fff = LyteSimple(fff, params=params, model=model)  
+    }
   }
   
   # Check for errors in family, only useful when lyte simple is not run.

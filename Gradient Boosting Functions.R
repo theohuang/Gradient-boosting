@@ -1,5 +1,5 @@
 ## Functions used for Gradient Boosting
-## Last updated: September 25, 2018
+## Last updated: October 18, 2018
 
 ## Checking if a family has 2 relatives in a row with BC
 ## Outputting the number of "vertical" instances (a relative can be a 
@@ -92,6 +92,17 @@ can.num <- function(fam, can){
   colSums(fam[paste("isAff", can, sep = "")])
 }
 
+homoz.genes <- function(pen, pwr){
+  cdf <- 1 - (1 - cumsum(pen))^pwr
+  return(c(cdf[1], diff(cdf)))
+}
+
+### raising gc penetrance to a power
+pen.gc.pwr <- function(pen, pwr){
+  pen$fFZ <- apply(pen$fFZ, 2, homoz.genes, pwr = pwr)
+  pen$fMZ <- apply(pen$fMZ, 2, homoz.genes, pwr = pwr)
+  return(pen)
+}
 
 
 ## family size, number of cancers in immediate family,
@@ -134,15 +145,15 @@ resid.loss <- function(y, l){
 
 
 perf.meas <- function(outcome, prediction){
-  c(sum(prediction) / sum(outcome),
+  c(sum(outcome) / sum(prediction),
     pROC::auc(outcome ~ prediction),
     sqrt(mean((outcome - prediction)^2)))
 }
 
-eo.xgb <- function(preds, dtrain){
+oe.xgb <- function(preds, dtrain){
   labels <- getinfo(dtrain, "label")
-  err <- sum(preds) / sum(labels)
-  return(list(metric = "EO", value = err))
+  err <- sum(labels) / sum(preds) 
+  return(list(metric = "OE", value = err))
 }
 
 auc.xgb <- function(preds, dtrain){
@@ -159,8 +170,8 @@ bs.xgb <- function(preds, dtrain){
 
 perf.xgb <- function(preds, dtrain){
   labels <- getinfo(dtrain, "label")
-  err <- list(sum(preds) / sum(labels), pROC::auc(labels ~ preds), sqrt(mean((labels - preds)^2)))
-  return(list(metric = list("EO", "AUC", "BS"), value = err))
+  err <- list(sum(labels) / sum(preds), pROC::auc(labels ~ preds), sqrt(mean((labels - preds)^2)))
+  return(list(metric = list("OE", "AUC", "BS"), value = err))
 }
 
 ## function to run MMRPRO, including options to include gastric cancer
@@ -198,14 +209,16 @@ mmr.gb.sim <- function(fam, af, CP, gastric = TRUE, scl = 1, pwr = NULL){
 gb.mmr <- function(sim.gb, shrink, bag, M.mmr, M.const, covs, n.boot, types){
   res.gb <- lapply(setNames(vector("list", length(types) + 2), c(paste("MMR", types, sep = ""), "XGB.mmr", "XGB.const")),
                    function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
-                                                    c("EO", "AUC", "BS")), 
+                                                    c("OE", "AUC", "BS")), 
                                     risk = setNames(data.frame(cbind(sim.gb$FamID, matrix(NA, nrow(sim.gb), n.boot))),
                                                     c("FamID", paste("risk", 1:n.boot, sep = "")))))
-  smp.train <- sample(1:nrow(sim.gb), floor(nrow(sim.gb) / 2))
-  train <- sim.gb[smp.train, ]
-  test <- sim.gb[-smp.train, ]
+
   
   for(i in 1:n.boot){
+    smp.train <- sample(1:nrow(sim.gb), floor(nrow(sim.gb) / 2))
+    train <- sim.gb[smp.train, ]
+    test <- sim.gb[-smp.train, ]
+    
     print(i)
     for(j in 1:length(types)){
       res.gb[[j]]$perf[i, ] <- perf.meas(test$MMR, test[, which(names(test) == paste("P.MMR", types[j], sep = ""))])

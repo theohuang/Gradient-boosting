@@ -8,14 +8,14 @@
 ## Last updated: August 23, 2018
 
 MMRpro.gast <- function(family, counselee.id=1, race = "Unknown", germline.testing=NULL, 
-                   marker.testing=NULL, params=MMRparams(), print=TRUE, 
-                   imputeAges=TRUE, imputeRelatives=TRUE, net = TRUE) {
+                        marker.testing=NULL, params=MMRparams(), print=TRUE, 
+                        imputeAges=TRUE, imputeRelatives=TRUE, net = TRUE) {
   
   age.max <- 94
   
   pro.agemax <- 0
   ## if proband is older than the maximum age - 1, then we only return carrier probabilities
-  if(max(family[which(family$ID == counselee.id), c("AgeColon", "AgeEndometrium", "AgeGastric")]) > age.max - 1){
+  if(max(family[which(family$ID == counselee.id), c("AgeColon", "AgeEndometrium", "AgeGastric")], na.rm = TRUE) > age.max - 1){
     pro.agemax <- 1
   }
   
@@ -44,7 +44,7 @@ MMRpro.gast <- function(family, counselee.id=1, race = "Unknown", germline.testi
   
   
   family <- CheckFamStructure.gast("MMRpro",fff=family, counselee.id=counselee.id, germline.testing=germline.testing, marker.testing=marker.testing, 
-                              params=params, imputeAges=imputeAges, imputeRelatives=imputeRelatives)
+                                   params=params, imputeAges=imputeAges, imputeRelatives=imputeRelatives)
   if(is.character(family)) {return(family)}
   
   ## truncating ages past age.max to age.max, since we don't have data past age age.max
@@ -68,77 +68,97 @@ MMRpro.gast <- function(family, counselee.id=1, race = "Unknown", germline.testi
   # Get the race-specific baseline estimates #
   
   
-  # if (race=="Unknown") {
-    # params$penetrance.net <- params$penetrance.net
-    # params$penetrance.crude <- params$penetrance.crude
-    # haz.d <- haz.death.crude
-  # }else{
-  #   if (race=="Asian") {
-  #     params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net$fFX[,"Asian"]
-  #     params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net$fFY[,"Asian"]
-  #     params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net$fMX[,"Asian"]
-  #     params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net$fMY[,"Asian"]
-  #     
-  #     params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude$fFX[,"Asian"]
-  #     params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude$fFY[,"Asian"]
-  #     params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude$fMX[,"Asian"]
-  #     params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude$fMY[,"Asian"]
-  #     
-  #     haz.d <- haz.death.race.crude$Asian
-  #   }else{
-  #     if (race=="Black") {
-  #       params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net$fFX[,"Black"]
-  #       params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net$fFY[,"Black"]
-  #       params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net$fMX[,"Black"]
-  #       params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net$fMY[,"Black"]
-  #       
-  #       params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude$fFX[,"Black"]
-  #       params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude$fFY[,"Black"]
-  #       params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude$fMX[,"Black"]
-  #       params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude$fMY[,"Black"]
-  #       
-  #       haz.d <- haz.death.race.crude$Black
-  #     }else{
-  #       if (race=="Hispanic") {
-  #         params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net$fFX[,"Hispanic"]
-  #         params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net$fFY[,"Hispanic"]
-  #         params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net$fMX[,"Hispanic"]
-  #         params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net$fMY[,"Hispanic"]
-  #         
-  #         params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude$fFX[,"Hispanic"]
-  #         params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude$fFY[,"Hispanic"]
-  #         params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude$fMX[,"Hispanic"]
-  #         params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude$fMY[,"Hispanic"]
-  #         
-  #         haz.d <- haz.death.race.crude$Hispanic
-  #       }else{
-  #         if (race=="NativeAmerican") {
-  #           params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net$fFX[,"NativeAmerican"]
-  #           params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net$fFY[,"NativeAmerican"]
-  #           params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net$fMX[,"NativeAmerican"]
-  #           params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net$fMY[,"NativeAmerican"]
-  #           
-  #           params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude$fFX[,"NativeAmerican"]
-  #           params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude$fFY[,"NativeAmerican"]
-  #           params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude$fMX[,"NativeAmerican"]
-  #           params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude$fMY[,"NativeAmerican"]
-  #           
-  #           haz.d <- haz.death.race.crude$NativeAmerican
-  #         }else{
-  #           if (race=="White") {
-  #             params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net$fFX[,"White"]
-  #             params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net$fFY[,"White"]
-  #             params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net$fMX[,"White"]
-  #             params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net$fMY[,"White"]
-  #             
-  #             params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude$fFX[,"White"]
-  #             params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude$fFY[,"White"]
-  #             params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude$fMX[,"White"]
-  #             params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude$fMY[,"White"]
-  #             
-  #             haz.d <- haz.death.race.crude$White
-  #           }
-  #         }}}}}
+  if (race=="Unknown") {
+    params$penetrance.net <- params$penetrance.net
+    params$penetrance.crude <- params$penetrance.crude
+    haz.d <- haz.death.crude
+  }else{
+    if (race=="Asian") {
+      params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net.gc$fFX[,"Asian"]
+      params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net.gc$fFY[,"Asian"]
+      params$penetrance.net$fFZ[,"M000"] <- baseline.race.mmr.net.gc$fFZ[,"Asian"]
+      params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net.gc$fMX[,"Asian"]
+      params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net.gc$fMY[,"Asian"]
+      params$penetrance.net$fMZ[,"M000"] <- baseline.race.mmr.net.gc$fMZ[,"Asian"]
+      
+      params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude.gc$fFX[,"Asian"]
+      params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude.gc$fFY[,"Asian"]
+      params$penetrance.crude$fFZ[,"M000"] <- baseline.race.mmr.crude.gc$fFZ[,"Asian"]
+      params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude.gc$fMX[,"Asian"]
+      params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude.gc$fMY[,"Asian"]
+      params$penetrance.crude$fMZ[,"M000"] <- baseline.race.mmr.crude.gc$fMZ[,"Asian"]
+      
+      haz.d <- haz.death.race.crude.gc$Asian
+    }else{
+      if (race=="Black") {
+        params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net.gc$fFX[,"Black"]
+        params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net.gc$fFY[,"Black"]
+        params$penetrance.net$fFZ[,"M000"] <- baseline.race.mmr.net.gc$fFZ[,"Black"]
+        params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net.gc$fMX[,"Black"]
+        params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net.gc$fMY[,"Black"]
+        params$penetrance.net$fMZ[,"M000"] <- baseline.race.mmr.net.gc$fMZ[,"Black"]
+        
+        params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude.gc$fFX[,"Black"]
+        params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude.gc$fFY[,"Black"]
+        params$penetrance.crude$fFZ[,"M000"] <- baseline.race.mmr.crude.gc$fFZ[,"Black"]
+        params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude.gc$fMX[,"Black"]
+        params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude.gc$fMY[,"Black"]
+        params$penetrance.crude$fMZ[,"M000"] <- baseline.race.mmr.crude.gc$fMZ[,"Black"]
+        
+        haz.d <- haz.death.race.crude.gc$Black
+      }else{
+        if (race=="Hispanic") {
+          params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net.gc$fFX[,"Hispanic"]
+          params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net.gc$fFY[,"Hispanic"]
+          params$penetrance.net$fFZ[,"M000"] <- baseline.race.mmr.net.gc$fFZ[,"Hispanic"]
+          params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net.gc$fMX[,"Hispanic"]
+          params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net.gc$fMY[,"Hispanic"]
+          params$penetrance.net$fMZ[,"M000"] <- baseline.race.mmr.net.gc$fMZ[,"Hispanic"]
+          
+          params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude.gc$fFX[,"Hispanic"]
+          params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude.gc$fFY[,"Hispanic"]
+          params$penetrance.crude$fFZ[,"M000"] <- baseline.race.mmr.crude.gc$fFZ[,"Hispanic"]
+          params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude.gc$fMX[,"Hispanic"]
+          params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude.gc$fMY[,"Hispanic"]
+          params$penetrance.crude$fMZ[,"M000"] <- baseline.race.mmr.crude.gc$fMZ[,"Hispanic"]
+          
+          haz.d <- haz.death.race.crude.gc$Hispanic
+        }else{
+          if (race=="NativeAmerican") {
+            params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net.gc$fFX[,"NativeAmerican"]
+            params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net.gc$fFY[,"NativeAmerican"]
+            params$penetrance.net$fFZ[,"M000"] <- baseline.race.mmr.net.gc$fFZ[,"NativeAmerican"]
+            params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net.gc$fMX[,"NativeAmerican"]
+            params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net.gc$fMY[,"NativeAmerican"]
+            params$penetrance.net$fMZ[,"M000"] <- baseline.race.mmr.net.gc$fMZ[,"NativeAmerican"]
+            
+            params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude.gc$fFX[,"NativeAmerican"]
+            params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude.gc$fFY[,"NativeAmerican"]
+            params$penetrance.crude$fFZ[,"M000"] <- baseline.race.mmr.crude.gc$fFZ[,"NativeAmerican"]
+            params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude.gc$fMX[,"NativeAmerican"]
+            params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude.gc$fMY[,"NativeAmerican"]
+            params$penetrance.crude$fMZ[,"M000"] <- baseline.race.mmr.crude.gc$fMZ[,"NativeAmerican"]
+            
+            haz.d <- haz.death.race.crude.gc$NativeAmerican
+          }else{
+            if (race=="White") {
+              params$penetrance.net$fFX[,"M000"] <- baseline.race.mmr.net.gc$fFX[,"White"]
+              params$penetrance.net$fFY[,"M000"] <- baseline.race.mmr.net.gc$fFY[,"White"]
+              params$penetrance.net$fFZ[,"M000"] <- baseline.race.mmr.net.gc$fFZ[,"White"]
+              params$penetrance.net$fMX[,"M000"] <- baseline.race.mmr.net.gc$fMX[,"White"]
+              params$penetrance.net$fMY[,"M000"] <- baseline.race.mmr.net.gc$fMY[,"White"]
+              params$penetrance.net$fMZ[,"M000"] <- baseline.race.mmr.net.gc$fMZ[,"White"]
+              
+              params$penetrance.crude$fFX[,"M000"] <- baseline.race.mmr.crude.gc$fFX[,"White"]
+              params$penetrance.crude$fFY[,"M000"] <- baseline.race.mmr.crude.gc$fFY[,"White"]
+              params$penetrance.crude$fFZ[,"M000"] <- baseline.race.mmr.crude.gc$fFZ[,"White"]
+              params$penetrance.crude$fMX[,"M000"] <- baseline.race.mmr.crude.gc$fMX[,"White"]
+              params$penetrance.crude$fMY[,"M000"] <- baseline.race.mmr.crude.gc$fMY[,"White"]
+              params$penetrance.crude$fMZ[,"M000"] <- baseline.race.mmr.crude.gc$fMZ[,"White"]
+              
+              haz.d <- haz.death.race.crude.gc$White
+            }
+          }}}}}
   
   
   psize <- dim(family)[1] #size of the family

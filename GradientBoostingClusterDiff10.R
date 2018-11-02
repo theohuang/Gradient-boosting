@@ -1,7 +1,7 @@
 ## Gradient Boosting Compared to Mendelian Models
 ## Running on Odyssey Cluster
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
-## Last updated: September 12, 2018
+## Last updated: October 21, 2018
 
 rm(list = ls())
 
@@ -23,6 +23,7 @@ source("CheckFamStructure.gast.R")
 source("Simulation Functions.R")
 source("Gradient Boosting Functions.R")
 source("Heterozygous Penetrance.R")
+source("LyteSimple.gast.R")
 
 
 ## Getting the penetrance
@@ -40,7 +41,7 @@ af <- setNames(rep(0.01, 3), genes)
 ## simulating data from the "true" penetrance
 start <- Sys.time()
 fam.sim <- foreach(i = 1:10, .combine = append) %dopar% {
-  gen.fam(1e3, CP, af, censoring = TRUE)
+  gen.fam(1e3, CP, af)
 }
 print(difftime(Sys.time(), start, units = "secs"))
 
@@ -90,7 +91,8 @@ sim.gb[can.names] <- NA
 start <- Sys.time()
 for(i in 1:nrow(sim.gb)){
   if(!is.null(fam.sim[[i]])){
-    sim.gb[can.names][sim.gb$FamID == i, ] <- colMeans(fam.sim[[i]][paste("isAff", cancers, sep = "")])
+    sim.gb[c("PropColorC", "PropGastC")][sim.gb$FamID == i, ] <- colMeans(fam.sim[[i]][paste("isAff", cancers[c(1, 3)], sep = "")])
+    sim.gb$PropEndomC[sim.gb$FamID == i] <- mean(fam.sim[[i]]$isAffEndomC[fam.sim[[i]]$Gender == 0])
   }
 }
 print(difftime(Sys.time(), start, units = "secs"))
@@ -102,7 +104,7 @@ print(difftime(Sys.time(), start, units = "secs"))
 types <- c(".ngc", "", ".025", ".05", ".2", ".4")
 n.boot <- 100
 M.mmr <- 35
-M.const <- 54
+M.const <- 60
 covs <- can.names
 shrink <- 0.1
 bag <- 0.5
