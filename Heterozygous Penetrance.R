@@ -1,6 +1,6 @@
 ### Changing the penetrance so that homozygous carriers are the same as
 ## heterozygous carriers
-## Last updated: September 7, 2018
+## Last updated: November 15, 2018
 
 hetpen <- function(CP, gastric = TRUE, scl = 1, pwr = NULL){
   
@@ -40,17 +40,18 @@ hetpen <- function(CP, gastric = TRUE, scl = 1, pwr = NULL){
     pen.gc.m <- CP$cancerMDens[1:94, , "GastC"]
     
     ## scaling the gastric cancer penetrance or raising the survival function to a power
-    pen.gc.m <- pen.gc.m * scl
-    pen.gc.f <- pen.gc.f * scl
+    ## only misspecifying the carriers
+    pen.gc.m[, -1] <- pen.gc.m[, -1] * scl
+    pen.gc.f[, -1] <- pen.gc.f[, -1] * scl
     if(!is.null(pwr)){
-      pen.gc.m <- apply(pen.gc.m, 2, homoz.genes, pwr = pwr)
-      pen.gc.f <- apply(pen.gc.f, 2, homoz.genes, pwr = pwr)
+      pen.gc.m[, -1] <- apply(pen.gc.m[, -1], 2, homoz.genes, pwr = pwr)
+      pen.gc.f[, -1] <- apply(pen.gc.f[, -1], 2, homoz.genes, pwr = pwr)
     }
   }
   
-
   
-
+  
+  
   
   ## adding gastric cancer penetrance to MMRpro penetrance
   

@@ -1,5 +1,5 @@
 ## Functions used for Gradient Boosting
-## Last updated: October 18, 2018
+## Last updated: November 28, 2018
 
 ## Checking if a family has 2 relatives in a row with BC
 ## Outputting the number of "vertical" instances (a relative can be a 
@@ -206,23 +206,24 @@ mmr.gb.sim <- function(fam, af, CP, gastric = TRUE, scl = 1, pwr = NULL){
 }
 
 
-gb.mmr <- function(sim.gb, shrink, bag, M.mmr, M.const, covs, n.boot, types){
+gb.mmr <- function(dat, shrink, bag, M.mmr, M.const, covs, n.boot, types, seed = NULL){
+  if(!is.null(seed)){
+    set.seed(seed)
+  }
   res.gb <- lapply(setNames(vector("list", length(types) + 2), c(paste("MMR", types, sep = ""), "XGB.mmr", "XGB.const")),
                    function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
                                                     c("OE", "AUC", "BS")), 
-                                    risk = setNames(data.frame(cbind(sim.gb$FamID, matrix(NA, nrow(sim.gb), n.boot))),
+                                    risk = setNames(data.frame(cbind(dat$FamID, matrix(NA, nrow(dat), n.boot))),
                                                     c("FamID", paste("risk", 1:n.boot, sep = "")))))
-
-  
   for(i in 1:n.boot){
-    smp.train <- sample(1:nrow(sim.gb), floor(nrow(sim.gb) / 2))
-    train <- sim.gb[smp.train, ]
-    test <- sim.gb[-smp.train, ]
+    smp.train <- sample(1:nrow(dat), floor(nrow(dat) / 2))
+    train <- dat[smp.train, ]
+    test <- dat[-smp.train, ]
     
     print(i)
     for(j in 1:length(types)){
       res.gb[[j]]$perf[i, ] <- perf.meas(test$MMR, test[, which(names(test) == paste("P.MMR", types[j], sep = ""))])
-      res.gb[[j]]$risk[sim.gb$FamID %in% test$FamID, i + 1] <- test[, which(names(test) == paste("P.MMR", types[j], sep = ""))]
+      res.gb[[j]]$risk[dat$FamID %in% test$FamID, i + 1] <- test[, which(names(test) == paste("P.MMR", types[j], sep = ""))]
     }
     
     ## XGBoost with MMRPRO
@@ -235,7 +236,7 @@ gb.mmr <- function(sim.gb, shrink, bag, M.mmr, M.const, covs, n.boot, types){
     res.xgb.mmr <- xgb.train(param, dtrain.mmr, nrounds = M.mmr)
     pred.xgb.mmr <- predict(res.xgb.mmr, dtest.mmr)
     res.gb$XGB.mmr$perf[i, ] <- perf.meas(test$MMR, pred.xgb.mmr)
-    res.gb$XGB.mmr$risk[sim.gb$FamID %in% test$FamID, i + 1] <- pred.xgb.mmr
+    res.gb$XGB.mmr$risk[dat$FamID %in% test$FamID, i + 1] <- pred.xgb.mmr
     
     ## XGBoost with constant
     dtrain.const <- xgb.DMatrix(as.matrix(train[, covs]), label = train$MMR)
@@ -243,7 +244,80 @@ gb.mmr <- function(sim.gb, shrink, bag, M.mmr, M.const, covs, n.boot, types){
     res.xgb.const <- xgb.train(param, dtrain.const, nrounds = M.const)
     pred.xgb.const <- predict(res.xgb.const, dtest.const)
     res.gb$XGB.const$perf[i, ] <- perf.meas(test$MMR, pred.xgb.const)
-    res.gb$XGB.const$risk[sim.gb$FamID %in% test$FamID, i + 1] <- pred.xgb.const
+    res.gb$XGB.const$risk[dat$FamID %in% test$FamID, i + 1] <- pred.xgb.const
+  }
+  
+  return(res.gb)
+}
+
+
+gb.mmr.cv <- function(dat, shrink, bag, M.mmr, M.const, covs, n.boot, types, metric = "auc", nfolds = 5, seed = NULL){
+  if(!is.null(seed)){
+    set.seed(seed)
+  }
+  res.gb <- lapply(setNames(vector("list", length(types) + 2), c(paste("MMR", types, sep = ""), "XGB.mmr", "XGB.const")),
+                   function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
+                                                    c("OE", "AUC", "BS")), 
+                                    risk = setNames(data.frame(cbind(dat$FamID, matrix(NA, nrow(dat), n.boot))),
+                                                    c("FamID", paste("risk", 1:n.boot, sep = ""))),
+                                    optM = rep(0, n.boot)))
+  for(i in 1:n.boot){
+    repeat{
+      ## we want at least 5 cases in the training set
+      smp.train <- sample(1:nrow(dat), floor(nrow(dat) / 2))
+      train <- dat[smp.train, ]
+      test <- dat[-smp.train, ]
+      if(sum(train$MMR) >= 5){
+        break
+      }
+    }
+    
+    print(i)
+    for(j in 1:length(types)){
+      res.gb[[j]]$perf[i, ] <- perf.meas(test$MMR, test[, which(names(test) == paste("P.MMR", types[j], sep = ""))])
+      res.gb[[j]]$risk[dat$FamID %in% test$FamID, i + 1] <- test[, which(names(test) == paste("P.MMR", types[j], sep = ""))]
+    }
+    
+    ## XGBoost with MMRPRO
+    param <- list(max_depth = 2, eta = shrink, silent = 1, subsample = bag,
+                  objective = "binary:logistic")
+    dtrain.mmr <- xgb.DMatrix(as.matrix(train[, covs]), label = train$MMR,
+                              base_margin = logit(train$P.MMR.ngc))
+    dtest.mmr <- xgb.DMatrix(as.matrix(test[, covs]), label = test$MMR,
+                             base_margin = logit(test$P.MMR.ngc))
+    # finding the optimal M using 5-fold cross validation and minimizing the metric
+    repeat{
+      ## we want cases in each "training" set of the cross validation
+      optM.mmr <- tryCatch(xgb.cv(param, dtrain.mmr, nrounds = M.mmr, nfold = nfolds,
+                                  metrics = metric, verbose = FALSE, early_stopping_rounds = 10)$best_iteration,
+                           error = function(e) NA)
+      if(!is.na(optM.mmr)){
+        break
+      }
+    }
+    res.xgb.mmr <- xgb.train(param, dtrain.mmr, nrounds = optM.mmr)
+    pred.xgb.mmr <- predict(res.xgb.mmr, dtest.mmr)
+    res.gb$XGB.mmr$perf[i, ] <- perf.meas(test$MMR, pred.xgb.mmr)
+    res.gb$XGB.mmr$risk[dat$FamID %in% test$FamID, i + 1] <- pred.xgb.mmr
+    res.gb$XGB.mmr$optM[i] <- optM.mmr
+    
+    ## XGBoost with constant
+    dtrain.const <- xgb.DMatrix(as.matrix(train[, covs]), label = train$MMR)
+    dtest.const <- xgb.DMatrix(as.matrix(test[, covs]), label = test$MMR)
+    repeat{
+      ## we want cases in each "training" set of the cross validation
+      optM.const <- tryCatch(xgb.cv(param, dtrain.const, nrounds = M.const, nfold = nfolds,
+                                    metrics = metric, verbose = FALSE, early_stopping_rounds = 10)$best_iteration,
+                             error = function(e) NA)
+      if(!is.na(optM.const)){
+        break
+      }
+    }
+    res.xgb.const <- xgb.train(param, dtrain.const, nrounds = optM.const)
+    pred.xgb.const <- predict(res.xgb.const, dtest.const)
+    res.gb$XGB.const$perf[i, ] <- perf.meas(test$MMR, pred.xgb.const)
+    res.gb$XGB.const$risk[dat$FamID %in% test$FamID, i + 1] <- pred.xgb.const
+    res.gb$XGB.const$optM[i] <- optM.const
   }
   
   return(res.gb)

@@ -1,7 +1,7 @@
 ## Gradient Boosting Compared to Mendelian Models
 ## Running on Odyssey Cluster
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
-## Last updated: October 21, 2018
+## Last updated: April 4, 2019
 
 rm(list = ls())
 
@@ -100,85 +100,29 @@ print(difftime(Sys.time(), start, units = "secs"))
 
 
 ## using gradient boosting, incorporating information on gastric cancer
-# nm.list <- c("MMR.ngc", "MMR", "MMR.025", "MMR.05", "MMR.2", "MMR.4", "XGB.mmr", "XGB.const")
 types <- c(".ngc", "", ".025", ".05", ".2", ".4")
 n.boot <- 100
-M.mmr <- 35
-M.const <- 60
+M.mmr <- 50
+M.const <- 50
 covs <- can.names
 shrink <- 0.1
 bag <- 0.5
 
 
-# res.gb <- setNames(vector("list", length(nm.list)), nm.list)
-# res.gb <- lapply(res.gb, function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
-#                                                           c("EO", "AUC", "BS")), 
-#                                           risk = setNames(data.frame(cbind(sim.gb$FamID, matrix(NA, nrow(sim.gb), n.boot))),
-#                                                           c("FamID", paste("risk", 1:n.boot, sep = "")))))
-
+start <- Sys.time()
+res.gb.50 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 50, M.const = 50, covs, n.boot, types, seed = a1 + 999)
+difftime(Sys.time(), start, units = "secs")
 
 start <- Sys.time()
-res.gb <- gb.mmr(sim.gb, shrink, bag, M.mmr, M.const, covs, n.boot, types)
+res.gb.25 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 25, M.const = 25, covs, n.boot, types, seed = a1 + 999)
+difftime(Sys.time(), start, units = "secs")
+
+start <- Sys.time()
+res.gb.100 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 100, M.const = 100, covs, n.boot, types, seed = a1 + 999)
 difftime(Sys.time(), start, units = "secs")
 
 
-# for(i in 1:n.boot){
-#   print(i)
-#   smp.train <- sample(1:nrow(sim.gb), floor(nrow(sim.gb) / 2))
-#   train <- sim.gb[smp.train, ]
-#   test <- sim.gb[-smp.train, ]
-#   
-#   ## MMRpro without GC
-#   res.gb$MMR.ngc$perf[i, ] <- perf.meas(test$MMR, test$P.MMR.ngc)
-#   res.gb$MMR.ngc$risk[res.gb$MMR.ngc$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR.ngc
-#   
-#   ## MMRpro with GC
-#   res.gb$MMR$perf[i, ] <- perf.meas(test$MMR, test$P.MMR)
-#   res.gb$MMR$risk[res.gb$MMR$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR
-#   
-#   res.gb$MMR.025$perf[i, ] <- perf.meas(test$MMR, test$P.MMR.025)
-#   res.gb$MMR.025$risk[res.gb$MMR.025$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR.025
-#   
-#   res.gb$MMR.05$perf[i, ] <- perf.meas(test$MMR, test$P.MMR.05)
-#   res.gb$MMR.05$risk[res.gb$MMR.05$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR.05
-#   
-#   res.gb$MMR.2$perf[i, ] <- perf.meas(test$MMR, test$P.MMR.2)
-#   res.gb$MMR.2$risk[res.gb$MMR.2$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR.2
-#   
-#   res.gb$MMR.4$perf[i, ] <- perf.meas(test$MMR, test$P.MMR.4)
-#   res.gb$MMR.4$risk[res.gb$MMR.4$risk$FamID %in% test$FamID, i + 1] <- test$P.MMR.4
-#   
-#   ## XGBoost with MMRPRO
-#   param <- list(max_depth = 2, eta = shrink, silent = 1, subsample = bag,
-#                 objective = "binary:logistic")
-#   dtrain.mmr <- xgb.DMatrix(as.matrix(train[, covs]), label = train$MMR,
-#                             base_margin = logit(train$P.MMR.ngc))
-#   dtest.mmr <- xgb.DMatrix(as.matrix(test[, covs]), label = test$MMR,
-#                            base_margin = logit(test$P.MMR.ngc))
-#   # watchlist <- list(train = dtrain.mmr, test = dtest.mmr)
-#   # res.xgb.mmr <- xgb.train(param, dtrain.mmr, nrounds = M, watchlist,
-#   #                          eval_metric = "auc", eval_metric = "rmse")
-#   res.xgb.mmr <- xgb.train(param, dtrain.mmr, nrounds = M.mmr)
-#   # cv <- xgb.cv(params = param, data = dtrain.mmr, nrounds = M, nfold = 5, metrics = list("auc", "rmse"))
-#   pred.xgb.mmr <- predict(res.xgb.mmr, dtest.mmr)
-#   res.gb$XGB.mmr$perf[i, ] <- perf.meas(test$MMR, pred.xgb.mmr)
-#   res.gb$XGB.mmr$risk[sim.gb$FamID %in% test$FamID, i + 1] <- pred.xgb.mmr
-#   
-#   ## XGBoost with constant
-#   dtrain.const <- xgb.DMatrix(as.matrix(train[, covs]), label = train$MMR)
-#   dtest.const <- xgb.DMatrix(as.matrix(test[, covs]), label = test$MMR)
-#   # watchlist <- list(train = dtrain.const, test = dtest.const)
-#   # res.xgb.const <- xgb.train(param, dtrain.const, nrounds = M, watchlist,
-#   #                            eval_metric = "auc", eval_metric = "rmse")
-#   res.xgb.const <- xgb.train(param, dtrain.const, nrounds = M.const)
-#   # cv.const <- xgb.cv(params = param, data = dtrain.const, nrounds = M, nfold = 5, metrics = list("auc", "rmse"))
-#   pred.xgb.const <- predict(res.xgb.const, dtest.const)
-#   res.gb$XGB.const$perf[i, ] <- perf.meas(test$MMR, pred.xgb.const)
-#   res.gb$XGB.const$risk[sim.gb$FamID %in% test$FamID, i + 1] <- pred.xgb.const
-# }
-
-
-save(res.gb, file = paste(getwd(), "/Gradient Boosting/Diff10/simgbpen_", a1, ".RData", sep = ""))
+save(res.gb.50, res.gb.25, res.gb.100, file = paste(getwd(), "/Gradient Boosting/Diff10/simgbpen_", a1, ".RData", sep = ""))
 
 
 
