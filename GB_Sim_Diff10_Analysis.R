@@ -122,6 +122,16 @@ rownames(xtab.all)[7:12] <- c("GB, MMR, 25", "GB, Constant, 25",
 xtab.all
 xtable(xtab.all)
 
+## gradient boosting with 50 iterations (with and without MMRpro) vs
+## MMRpro (with and without gastric cancer)
+xtable(xtab.50[c(7:8, 1:2), ], digits = 3)
+
+## gradient boosting with 25, 50, and 100 iterations (with and without MMRpro)
+xtable(rbind(xtab.25[7:8, ], xtab.50[7:8, ], xtab.100[7:8, ])[c(1, 3, 5, 2, 4, 6), ])
+
+## MMRpro with misspecified penetrances
+xtable(xtab.50[3:6, ], digits = 3)
+
 ## plotting the difference between the scaled GC penetrances
 library(BMmultigene)
 library(ggplot2)

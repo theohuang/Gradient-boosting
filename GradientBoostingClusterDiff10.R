@@ -1,7 +1,8 @@
 ## Gradient Boosting Compared to Mendelian Models
 ## Running on Odyssey Cluster
+## Simulated data
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
-## Last updated: April 4, 2019
+## Last updated: April 24, 2019
 
 rm(list = ls())
 
@@ -10,7 +11,6 @@ a1 <- as.integer(Sys.getenv('SLURM_ARRAY_TASK_ID'))
 set.seed(a1)
 
 library(BayesMendel)
-library(BMmultigene)
 library(abind)
 library(xgboost)
 library(pROC)
@@ -24,6 +24,15 @@ source("Simulation Functions.R")
 source("Gradient Boosting Functions.R")
 source("Heterozygous Penetrance.R")
 source("LyteSimple.gast.R")
+
+source(paste(getwd(), "/Generating Families Functions/sim.simFam.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/genCancerPen.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/sim.buildGenoMat.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/sim.linkParents.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/sim.simCurAgeVar.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/sim.simCancerVars.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/sim.buildBranchOfAlleleMats.R", sep = ""))
+source(paste(getwd(), "/Generating Families Functions/helpers.R", sep = ""))
 
 
 ## Getting the penetrance
