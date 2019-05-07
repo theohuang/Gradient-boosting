@@ -1,8 +1,8 @@
 ### Changing the penetrance so that homozygous carriers are the same as
 ## heterozygous carriers
-## Last updated: November 15, 2018
+## Last updated: May 1, 2019
 
-hetpen <- function(CP, gastric = TRUE, scl = 1, pwr = NULL){
+hetpen <- function(CP, gastric = TRUE, scl = c(1, 1, 1), pwr = c(1, 1, 1)){
   
   # net2crude <- function(pen.c.net, pen.d.crude){
   #   pen.d.net <- c(pen.d.crude[1], pen.d.crude[-1] / (1 - cumsum(pen.c.net)[-1]))
@@ -35,18 +35,29 @@ hetpen <- function(CP, gastric = TRUE, scl = 1, pwr = NULL){
   pen.crc.m <- CP$cancerMDens[1:94, , "ColorC"]
   pen.ec.f <- CP$cancerFDens[1:94, , "EndomC"]
   pen.ec.m <- CP$cancerMDens[1:94, , "EndomC"]
+  
+  pen.crc.f[, -1] <- pen.crc.f[, -1] * scl[1]
+  pen.crc.m[, -1] <- pen.crc.m[, -1] * scl[1]
+  pen.ec.f[, -1] <- pen.ec.f[, -1] * scl[2]
+  pen.ec.m[, -1] <- pen.ec.m[, -1] * scl[2]
+  
+  pen.crc.f[, -1] <- apply(pen.crc.f[, -1], 2, homoz.genes, pwr = pwr[1])
+  pen.crc.m[, -1] <- apply(pen.crc.m[, -1], 2, homoz.genes, pwr = pwr[1])
+  pen.ec.f[, -1] <- apply(pen.ec.f[, -1], 2, homoz.genes, pwr = pwr[2])
+  pen.ec.m[, -1] <- apply(pen.ec.m[, -1], 2, homoz.genes, pwr = pwr[2])
+  
   if(gastric == TRUE){
     pen.gc.f <- CP$cancerFDens[1:94, , "GastC"]
     pen.gc.m <- CP$cancerMDens[1:94, , "GastC"]
     
     ## scaling the gastric cancer penetrance or raising the survival function to a power
     ## only misspecifying the carriers
-    pen.gc.m[, -1] <- pen.gc.m[, -1] * scl
-    pen.gc.f[, -1] <- pen.gc.f[, -1] * scl
-    if(!is.null(pwr)){
-      pen.gc.m[, -1] <- apply(pen.gc.m[, -1], 2, homoz.genes, pwr = pwr)
-      pen.gc.f[, -1] <- apply(pen.gc.f[, -1], 2, homoz.genes, pwr = pwr)
-    }
+    pen.gc.m[, -1] <- pen.gc.m[, -1] * scl[3]
+    pen.gc.f[, -1] <- pen.gc.f[, -1] * scl[3]
+    # if(!is.null(pwr)){
+    pen.gc.m[, -1] <- apply(pen.gc.m[, -1], 2, homoz.genes, pwr = pwr[3])
+    pen.gc.f[, -1] <- apply(pen.gc.f[, -1], 2, homoz.genes, pwr = pwr[3])
+    # }
   }
   
   

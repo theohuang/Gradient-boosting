@@ -1,5 +1,5 @@
 ## Functions used for Gradient Boosting
-## Last updated: November 28, 2018
+## Last updated: May 2, 2019
 
 ## Checking if a family has 2 relatives in a row with BC
 ## Outputting the number of "vertical" instances (a relative can be a 
@@ -176,7 +176,7 @@ perf.xgb <- function(preds, dtrain){
 
 ## function to run MMRPRO, including options to include gastric cancer
 ## and to scale the gastric cancer penetrance
-mmr.gb.sim <- function(fam, af, CP, gastric = TRUE, scl = 1, pwr = NULL){
+mmr.gb.sim <- function(fam, af, CP, gastric = TRUE, scl = c(1, 1, 1), pwr = c(1, 1, 1)){
   fam$AffectedColon <- fam$isAffColorC
   fam$AffectedEndometrium <- fam$isAffEndomC
   fam$AgeColon <- fam$AgeColorC
@@ -210,20 +210,31 @@ gb.mmr <- function(dat, shrink, bag, M.mmr, M.const, covs, n.boot, types, seed =
   if(!is.null(seed)){
     set.seed(seed)
   }
-  res.gb <- lapply(setNames(vector("list", length(types) + 2), c(paste("MMR", types, sep = ""), "XGB.mmr", "XGB.const")),
-                   function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
-                                                    c("OE", "AUC", "BS")), 
-                                    risk = setNames(data.frame(cbind(dat$FamID, matrix(NA, nrow(dat), n.boot))),
-                                                    c("FamID", paste("risk", 1:n.boot, sep = "")))))
+  if(length(types) > 0){
+    res.gb <- lapply(setNames(vector("list", length(types) + 2), c(paste("MMR", types, sep = ""), "XGB.mmr", "XGB.const")),
+                     function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
+                                                      c("OE", "AUC", "BS")), 
+                                      risk = setNames(data.frame(cbind(dat$FamID, matrix(NA, nrow(dat), n.boot))),
+                                                      c("FamID", paste("risk", 1:n.boot, sep = "")))))
+  } else{
+    res.gb <- lapply(setNames(vector("list", 2), c("XGB.mmr", "XGB.const")),
+                     function(x) list(perf = setNames(data.frame(matrix(0, n.boot, 3)),
+                                                      c("OE", "AUC", "BS")), 
+                                      risk = setNames(data.frame(cbind(dat$FamID, matrix(NA, nrow(dat), n.boot))),
+                                                      c("FamID", paste("risk", 1:n.boot, sep = "")))))
+  }
+  
   for(i in 1:n.boot){
     smp.train <- sample(1:nrow(dat), floor(nrow(dat) / 2))
     train <- dat[smp.train, ]
     test <- dat[-smp.train, ]
     
     print(i)
-    for(j in 1:length(types)){
-      res.gb[[j]]$perf[i, ] <- perf.meas(test$MMR, test[, which(names(test) == paste("P.MMR", types[j], sep = ""))])
-      res.gb[[j]]$risk[dat$FamID %in% test$FamID, i + 1] <- test[, which(names(test) == paste("P.MMR", types[j], sep = ""))]
+    if(length(types) > 0){
+      for(j in 1:length(types)){
+        res.gb[[j]]$perf[i, ] <- perf.meas(test$MMR, test[, which(names(test) == paste("P.MMR", types[j], sep = ""))])
+        res.gb[[j]]$risk[dat$FamID %in% test$FamID, i + 1] <- test[, which(names(test) == paste("P.MMR", types[j], sep = ""))]
+      }
     }
     
     ## XGBoost with MMRPRO
