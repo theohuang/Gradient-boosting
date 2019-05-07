@@ -115,11 +115,11 @@ colnames(res.summ.100.lp) <- c("OE mean", "OE 3", "OE 97",
 
 save(res.50, res.25, res.100,
      res.summ.50, res.summ.25, res.summ.100,
-     file = "Diff10_Sim_Results.RData")
+     file = "GB_Sim_Results.RData")
 
 save(res.50.lp, res.25.lp, res.100.lp,
      res.summ.50.lp, res.summ.25.lp, res.summ.100.lp,
-     file = "Diff10_Sim_Results_lp.RData")
+     file = "GB_Sim_Results_lp.RData")
 
 
 res.summ.50.lp.ngc <- matrix(0, 2, 9)
@@ -151,8 +151,8 @@ save(res.50.lp.ngc, res.50.ngc, res.summ.50.lp.ngc, res.summ.50.ngc,
 
 
 
-load("Diff10_Sim_Results.RData")
-load("Diff10_Sim_Results_lp.RData")
+load("GB_Sim_Results.RData")
+load("GB_Sim_Results_lp.RData")
 load("GB_Sim_NGC_Results.RData")
 
 
