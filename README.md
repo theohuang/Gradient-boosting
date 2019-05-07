@@ -5,7 +5,7 @@
 This respository contains code to apply gradient boosting extend MMRpro prediction of carrying mutations of MLH1, MSH2, and MSH6.  All code is written by Theodore Huang except where specified.
 
 ## Running the code
-In order to reproduce the simulation results, run "GradientBoostingClusterDiff10.R". Note that the code is intended to be used with the Harvard FAS cluster. The BayesMendel R package, which can be found at https://projects.iq.harvard.edu/bayesmendel/bayesmendel-r-package, is also required to run the code.
+In order to reproduce the simulation results, run "GradientBoostingSimulaton_lp.R". Note that the code is intended to be used with the Harvard FAS Odyssey cluster. The BayesMendel R package, which can be found at https://projects.iq.harvard.edu/bayesmendel/bayesmendel-r-package, is also required to run the code.
     
 ## The rest of files are all described below:
 
