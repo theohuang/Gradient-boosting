@@ -3,7 +3,7 @@
 ## Simulated data
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
 ## Using scaled versions of CRC and EC penetrances
-## Last updated: May 2, 2019
+## Last updated: June 23, 2020
 
 rm(list = ls())
 
@@ -125,25 +125,22 @@ print(difftime(Sys.time(), start, units = "secs"))
 
 ## using gradient boosting, incorporating information on gastric cancer
 types <- c(".ngc.ocl", ".ocl", ".ngc", "", ".025", ".05", ".2", ".4")
-n.boot <- 100
-covs <- can.names
+n.cv <- 100
+covs <- list(can.names, can.names[1:2])
 shrink <- 0.1
 bag <- 0.5
+M.mmr <- c(25, 50, 100)
+M.const <- c(25, 50, 100)
 
 start <- Sys.time()
-res.gb.25 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 25, M.const = 25, covs, n.boot, types, seed = a1 + 999)
-difftime(Sys.time(), start, units = "secs")
+res.gb <- gb.mmr(sim.gb, shrink, bag, M.mmr, M.const, covs, n.cv, types, seed = a1 + 999)
 
-start <- Sys.time()
-res.gb.50 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 50, M.const = 50, covs, n.boot, types, seed = a1 + 999)
-difftime(Sys.time(), start, units = "secs")
-
-start <- Sys.time()
-res.gb.100 <- gb.mmr(sim.gb, shrink, bag, M.mmr = 100, M.const = 100, covs, n.boot, types, seed = a1 + 999)
+## small sample size (using first 1000 families)
+res.gb.sss <- gb.mmr(sim.gb[1:1000, ], shrink, bag, M.mmr, M.const, covs, n.cv, types, seed = a1 + 999)
 difftime(Sys.time(), start, units = "secs")
 
 
-save(fam.sim, sim.gb, res.gb.25, res.gb.50, res.gb.100, file = paste(getwd(), "/Gradient Boosting/Simulation/Low Penetrance/simgb_lp_", a1, ".RData", sep = ""))
+save(res.gb, res.gb.sss, file = paste0(getwd(), "/Gradient Boosting/Simulation/Low Penetrance/simgb_lp_", a1, ".RData"))
 
 
 

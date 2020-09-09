@@ -2,7 +2,9 @@
 ## Running on Odyssey Cluster
 ## Simulated data
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
-## Last updated: July 27, 2020
+## Using scaled versions of CRC and EC penetrances
+## Large sample size only
+## Last updated: August 12, 2020
 
 rm(list = ls())
 
@@ -41,7 +43,9 @@ genes <- c("MLH1", "MSH2", "MSH6")
 
 ## using scaled GC penetrance so that lifetime risk of carriers is 0.5 and
 ## lifetime risk of non-carrires is 0.05
-load("pen_gb_gastric10.RData")
+## using scaled CRC and EC penetrances so that the lifetime risk for
+## carriers is 0.2
+load("pen_gb_gastric10_lp.RData")
 
 CP <- genCancerPen(genes, cancers, penCancersF, penCancersM, maxK = length(genes), age.last = 95)
 
@@ -131,13 +135,14 @@ M.const <- c(25, 50, 100)
 
 start <- Sys.time()
 res.gb <- gb.mmr(sim.gb, shrink, bag, M.mmr, M.const, covs, n.cv, types, seed = a1 + 999)
-
-## small sample size (using first 1000 families)
-res.gb.sss <- gb.mmr(sim.gb[1:1000, ], shrink, bag, M.mmr, M.const, covs, n.cv, types, seed = a1 + 999)
 difftime(Sys.time(), start, units = "secs")
 
+# ## small sample size (using first 1000 families)
+# res.gb.sss <- gb.mmr(sim.gb[1:1000, ], shrink, bag, M.mmr, M.const, covs, n.cv, types, seed = a1 + 999)
+# difftime(Sys.time(), start, units = "secs")
 
-save(res.gb, res.gb.sss, file = paste0(getwd(), "/Gradient Boosting/Simulation/simgb_", a1, ".RData"))
+
+save(res.gb, file = paste0(getwd(), "/Gradient Boosting/Simulation/Low Penetrance/LSS/simgb_lp_lss_", a1, ".RData"))
 
 
 

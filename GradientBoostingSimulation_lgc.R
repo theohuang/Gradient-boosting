@@ -2,7 +2,8 @@
 ## Running on Odyssey Cluster
 ## Simulated data
 ## Using a non-carrier lifetime risk of 0.05 and carrier lifetime risks of 0.5
-## Last updated: July 27, 2020
+## Using low penetrance for gastric cancer
+## Last updated: August 4, 2020
 
 rm(list = ls())
 
@@ -39,9 +40,10 @@ source(paste(getwd(), "/Generating Families Functions/helpers.R", sep = ""))
 cancers <- c("ColorC", "EndomC", "GastC")
 genes <- c("MLH1", "MSH2", "MSH6")
 
-## using scaled GC penetrance so that lifetime risk of carriers is 0.5 and
-## lifetime risk of non-carrires is 0.05
-load("pen_gb_gastric10.RData")
+## using PanelPRO gastric cancer penetrance
+load("pen_gb_gastric10_lgc.RData")
+
+
 
 CP <- genCancerPen(genes, cancers, penCancersF, penCancersM, maxK = length(genes), age.last = 95)
 
@@ -137,7 +139,7 @@ res.gb.sss <- gb.mmr(sim.gb[1:1000, ], shrink, bag, M.mmr, M.const, covs, n.cv, 
 difftime(Sys.time(), start, units = "secs")
 
 
-save(res.gb, res.gb.sss, file = paste0(getwd(), "/Gradient Boosting/Simulation/simgb_", a1, ".RData"))
+save(res.gb, res.gb.sss, file = paste0(getwd(), "/Gradient Boosting/Simulation/Low Gastric Cancer/simgb_lgc_", a1, ".RData"))
 
 
 
